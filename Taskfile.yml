@@ -1,0 +1,60 @@
+version: '3'
+
+vars:
+  PYTHON: /opt/homebrew/opt/python@3.10/bin/python3.10
+  VENV_NAME: .venv
+  VENV_BIN: '{{.VENV_NAME}}/bin'
+  VENV_PYTHON: '{{.VENV_BIN}}/python'
+  VENV_PIP: '{{.VENV_BIN}}/pip3'
+
+tasks:
+  setup-venv:
+    desc: Create a virtual environment if it doesn't exist
+    cmds:
+      - '{{.PYTHON}} -m venv {{.VENV_NAME}}'
+    status:
+      - test -d {{.VENV_NAME}} && test -x {{.VENV_NAME}}/bin/activate
+
+  install-deps:
+    desc: Install Python dependencies
+    deps: [setup-venv]
+    cmds:
+      - '{{.VENV_PYTHON}} -m pip install --upgrade pip'
+      - '{{.VENV_PYTHON}} -m pip install -r requirements.txt'
+
+  check-model:
+    desc: Check if model directory and file exist
+    cmds:
+      - mkdir -p model
+      - |
+        if [ ! -f model/citrus_inceptionv3_finetuned_best.keras ] ; then
+          echo "Warning: No model file found. Please add either citrus_inceptionv3_finetuned_best.keras or citrus_model.h5 to the model directory."
+          exit 1
+        fi
+
+  setup:
+    desc: Complete setup of the application
+    deps: [setup-venv, install-deps, check-model]
+    cmds:
+      - echo "Setup completed successfully!"
+
+  run:
+    desc: Run the Flask application
+    deps: [setup]
+    cmds:
+      - source {{.VENV_BIN}}/activate && {{.VENV_PYTHON}} app.py --port 5001
+
+  clean:
+    desc: Clean up generated files and virtual environment
+    cmds:
+      - lsof -ti:5001 | xargs kill -9 || true
+      - rm -rf {{.VENV_NAME}}
+      - rm -rf __pycache__
+      - rm -rf .pytest_cache
+      - find . -type d -name "__pycache__" -exec rm -r {} +
+      - find . -type f -name "*.pyc" -delete
+
+  default:
+    desc: Display available tasks
+    cmds:
+      - task --list 
